@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import Image from "next/image";
 
-import { Doctors } from "@/constants";
+import { Doctors, DoctorType } from "@/constants";
 import { formatDateTime } from "@/lib/utils";
 import { Appointment } from "@/types/appwrite.types";
 
@@ -39,12 +39,12 @@ export const columns: ColumnDef<Appointment>[] = [
   },
   {
     accessorKey: "schedule",
-    header: "Appointment",
+    header: "Schedule",
     cell: ({ row }) => {
       const appointment = row.original;
       return (
         <p className="text-14-regular min-w-[100px]">
-          {formatDateTime(appointment.schedule).dateTime}
+          {formatDateTime(appointment.schedule, "Asia/Jakarta").dateTime}
         </p>
       );
     },
@@ -54,7 +54,6 @@ export const columns: ColumnDef<Appointment>[] = [
     header: "Doctor",
     cell: ({ row }) => {
       const appointment = row.original;
-
       const doctor = Doctors.find(
         (doctor) => doctor.name === appointment.primaryPhysician
       );

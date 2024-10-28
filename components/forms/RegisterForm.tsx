@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { SelectItem } from "@/components/ui/select";
 import {
   Doctors,
+  DoctorTypes,
   GenderOptions,
   IdentificationTypes,
   PatientFormDefaultValues,
@@ -70,6 +71,7 @@ const RegisterForm = ({ user }: { user: User }) => {
         occupation: values.occupation,
         emergencyContactName: values.emergencyContactName,
         emergencyContactNumber: values.emergencyContactNumber,
+        doctorType: values.doctorType,
         primaryPhysician: values.primaryPhysician,
         insuranceProvider: values.insuranceProvider,
         insurancePolicyNumber: values.insurancePolicyNumber,
@@ -224,6 +226,21 @@ const RegisterForm = ({ user }: { user: User }) => {
             <h2 className="sub-header">Medical Information</h2>
           </div>
 
+          {/* DOCTOR TYPE */}
+          <CustomFormField
+            fieldType={FormFieldType.SELECT}
+            control={form.control}
+            name="doctorType"
+            label="Doctor Type"
+            placeholder="Select a doctor type"
+          >
+            {DoctorTypes.map((type) => (
+              <SelectItem key={type} value={type}>
+                {type}
+              </SelectItem>
+            ))}
+          </CustomFormField>
+
           {/* PRIMARY CARE PHYSICIAN */}
           <CustomFormField
             fieldType={FormFieldType.SELECT}
@@ -231,8 +248,11 @@ const RegisterForm = ({ user }: { user: User }) => {
             name="primaryPhysician"
             label="Primary care physician"
             placeholder="Select a physician"
+            disabled={!form.watch("doctorType")}
           >
-            {Doctors.map((doctor, i) => (
+            {Doctors.filter(
+              (doctor) => doctor.type === form.watch("doctorType")
+            ).map((doctor, i) => (
               <SelectItem key={doctor.name + i} value={doctor.name}>
                 <div className="flex cursor-pointer items-center gap-2">
                   <Image

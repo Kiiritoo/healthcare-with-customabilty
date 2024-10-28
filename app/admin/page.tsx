@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import LogoutButton from "@/components/LogoutButton";
 
 import { StatCard } from "@/components/StatCard";
 import { columns } from "@/components/table/columns";
@@ -7,6 +8,7 @@ import { DataTable } from "@/components/table/DataTable";
 import { getRecentAppointmentList } from "@/lib/actions/appointment.actions";
 
 const AdminPage = async () => {
+
   const appointments = await getRecentAppointmentList();
 
   return (
@@ -22,7 +24,10 @@ const AdminPage = async () => {
           />
         </Link>
 
-        <p className="text-16-semibold">Admin Dashboard</p>
+        <div className="flex items-center gap-4">
+          <p className="text-16-semibold">Admin Dashboard</p>
+          <LogoutButton />
+        </div>
       </header>
 
       <main className="admin-main">

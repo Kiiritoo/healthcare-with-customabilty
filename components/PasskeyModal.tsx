@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
@@ -22,10 +22,17 @@ import { decryptKey, encryptKey } from "@/lib/utils";
 
 export const PasskeyModal = () => {
   const router = useRouter();
-  const path = usePathname();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [passkey, setPasskey] = useState("");
   const [error, setError] = useState("");
+  const [attempts, setAttempts] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null);
+
+  const MAX_ATTEMPTS = 3;
+  const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
   const encryptedKey =
     typeof window !== "undefined"
@@ -34,15 +41,61 @@ export const PasskeyModal = () => {
 
   useEffect(() => {
     const accessKey = encryptedKey && decryptKey(encryptedKey);
+    const isAdmin = searchParams.get('admin') === 'true';
+    const isPatientAdmin = pathname.includes('/admin/patients');
 
-    if (path)
-      if (accessKey === process.env.NEXT_PUBLIC_ADMIN_PASSKEY!.toString()) {
+    // Load attempts and lockout state from localStorage
+    const storedAttempts = localStorage.getItem("passkeyAttempts");
+    const storedLockoutEndTime = localStorage.getItem("passkeyLockoutEndTime");
+
+    if (storedAttempts) {
+      setAttempts(parseInt(storedAttempts, 10));
+    }
+
+    if (storedLockoutEndTime) {
+      const endTime = parseInt(storedLockoutEndTime, 10);
+      if (Date.now() < endTime) {
+        setIsLocked(true);
+        setLockoutEndTime(endTime);
+      } else {
+        localStorage.removeItem("passkeyAttempts");
+        localStorage.removeItem("passkeyLockoutEndTime");
+      }
+    }
+
+    // Check for patient admin access
+    if (isPatientAdmin) {
+      if (!accessKey || accessKey !== process.env.NEXT_PUBLIC_ADMIN_PATIENT_PASSKEY) {
+        setOpen(true);
+      } else {
+        setOpen(false);
+      }
+    }
+    // Check for regular admin access
+    else if (isAdmin) {
+      if (!accessKey || accessKey !== process.env.NEXT_PUBLIC_ADMIN_PASSKEY) {
+        setOpen(true);
+      } else {
         setOpen(false);
         router.push("/admin");
-      } else {
-        setOpen(true);
       }
-  }, [encryptedKey]);
+    }
+  }, [encryptedKey, searchParams, router, pathname]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isLocked && lockoutEndTime) {
+      timer = setInterval(() => {
+        if (Date.now() >= lockoutEndTime) {
+          setIsLocked(false);
+          setLockoutEndTime(null);
+          localStorage.removeItem("passkeyAttempts");
+          localStorage.removeItem("passkeyLockoutEndTime");
+        }
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [isLocked, lockoutEndTime]);
 
   const closeModal = () => {
     setOpen(false);
@@ -54,14 +107,36 @@ export const PasskeyModal = () => {
   ) => {
     e.preventDefault();
 
+    if (isLocked) {
+      setError("You are temporarily locked out. Please try again later.");
+      return;
+    }
+
     if (passkey === process.env.NEXT_PUBLIC_ADMIN_PASSKEY) {
       const encryptedKey = encryptKey(passkey);
-
-      localStorage.setItem("accessKey", encryptedKey);
-
+      document.cookie = `accessKey=${encryptedKey}; path=/`;
       setOpen(false);
+      router.push("/admin");
+      localStorage.removeItem("passkeyAttempts");
+    } else if (passkey === process.env.NEXT_PUBLIC_ADMIN_PATIENT_PASSKEY) {
+      const encryptedKey = encryptKey(passkey);
+      document.cookie = `accessKey=${encryptedKey}; path=/`;
+      setOpen(false);
+      router.push("/admin/patients");
+      localStorage.removeItem("passkeyAttempts");
     } else {
+      const newAttempts = attempts + 1;
+      setAttempts(newAttempts);
+      localStorage.setItem("passkeyAttempts", newAttempts.toString());
       setError("Invalid passkey. Please try again.");
+
+      if (newAttempts >= MAX_ATTEMPTS) {
+        setIsLocked(true);
+        const endTime = Date.now() + LOCKOUT_DURATION;
+        setLockoutEndTime(endTime);
+        localStorage.setItem("passkeyLockoutEndTime", endTime.toString());
+        setError("Too many failed attempts. You are locked out for 5 minutes.");
+      }
     }
   };
 
@@ -89,6 +164,7 @@ export const PasskeyModal = () => {
             maxLength={6}
             value={passkey}
             onChange={(value) => setPasskey(value)}
+            disabled={isLocked}
           >
             <InputOTPGroup className="shad-otp">
               <InputOTPSlot className="shad-otp-slot" index={0} />
@@ -105,11 +181,17 @@ export const PasskeyModal = () => {
               {error}
             </p>
           )}
+          {isLocked && lockoutEndTime && (
+            <p className="text-14-regular mt-4 flex justify-center">
+              Locked out until: {new Date(lockoutEndTime).toLocaleTimeString()}
+            </p>
+          )}
         </div>
         <AlertDialogFooter>
           <AlertDialogAction
             onClick={(e) => validatePasskey(e)}
             className="shad-primary-btn w-full"
+            disabled={isLocked}
           >
             Enter Admin Passkey
           </AlertDialogAction>

@@ -162,3 +162,48 @@ export const getAppointment = async (appointmentId: string) => {
     );
   }
 };
+
+export const checkAppointmentAvailability = async (
+  doctorName: string,
+  date: Date
+) => {
+  try {
+    console.log("Checking availability for:", doctorName, date);
+    const existingAppointments = await databases.listDocuments(
+      DATABASE_ID!,
+      APPOINTMENT_COLLECTION_ID!,
+      [
+        Query.equal("primaryPhysician", doctorName),
+        Query.equal("schedule", date.toISOString()),
+      ]
+    );
+    console.log("Existing appointments:", existingAppointments.total);
+    return existingAppointments.total === 0;
+  } catch (error) {
+    console.error("Error checking appointment availability:", error);
+    return false;
+  }
+};
+
+export const getPatientAppointments = async (patientId: string) => {
+  try {
+    console.log('Fetching appointments for patient:', patientId); // Debug log
+    
+    const appointments = await databases.listDocuments(
+      DATABASE_ID!,
+      APPOINTMENT_COLLECTION_ID!,
+      [
+        Query.equal("patient", patientId), // Changed from userId to patient
+        Query.orderDesc("schedule")
+      ]
+    );
+
+    console.log('Found appointments:', appointments); // Debug log
+    
+    revalidatePath(`/patients/${patientId}/dashboard`);
+    return parseStringify(appointments);
+  } catch (error) {
+    console.error("Error fetching patient appointments:", error);
+    return null;
+  }
+};

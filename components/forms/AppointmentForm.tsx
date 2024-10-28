@@ -3,15 +3,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Dispatch, SetStateAction, useState } from "react";
+import { Dispatch, SetStateAction, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { addWeeks } from "date-fns";
 
 import { SelectItem } from "@/components/ui/select";
-import { Doctors } from "@/constants";
+import { Doctors, DoctorTypes } from "@/constants";
 import {
   createAppointment,
   updateAppointment,
+  checkAppointmentAvailability,
 } from "@/lib/actions/appointment.actions";
 import { getAppointmentSchema } from "@/lib/validation";
 import { Appointment } from "@/types/appwrite.types";
@@ -37,12 +39,14 @@ export const AppointmentForm = ({
 }) => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
+  const [isAvailable, setIsAvailable] = useState(true);
 
   const AppointmentFormValidation = getAppointmentSchema(type);
 
   const form = useForm<z.infer<typeof AppointmentFormValidation>>({
     resolver: zodResolver(AppointmentFormValidation),
     defaultValues: {
+      doctorType: appointment ? appointment?.doctorType : "",
       primaryPhysician: appointment ? appointment?.primaryPhysician : "",
       schedule: appointment
         ? new Date(appointment?.schedule!)
@@ -53,9 +57,36 @@ export const AppointmentForm = ({
     },
   });
 
+  useEffect(() => {
+    const checkAvailability = async () => {
+      const doctorName = form.watch("primaryPhysician");
+      const date = form.watch("schedule");
+      if (doctorName && date) {
+        setIsAvailable(true); // Reset to true before checking
+        const availability = await checkAppointmentAvailability(
+          doctorName,
+          date
+        );
+        setIsAvailable(availability);
+        console.log("Availability:", availability); // Add this line
+      }
+    };
+
+    checkAvailability();
+  }, [form.watch("primaryPhysician"), form.watch("schedule")]);
+
+  const maxDate = addWeeks(new Date(), 1);
+
   const onSubmit = async (
     values: z.infer<typeof AppointmentFormValidation>
   ) => {
+    if (!isAvailable) {
+      alert(
+        "This time slot is not available. Please choose another time or doctor."
+      );
+      return;
+    }
+
     setIsLoading(true);
 
     let status;
@@ -75,6 +106,7 @@ export const AppointmentForm = ({
         const appointment = {
           userId,
           patient: patientId,
+          doctorType: values.doctorType,
           primaryPhysician: values.primaryPhysician,
           schedule: new Date(values.schedule),
           reason: values.reason!,
@@ -95,6 +127,7 @@ export const AppointmentForm = ({
           userId,
           appointmentId: appointment?.$id!,
           appointment: {
+            doctorType: values.doctorType,
             primaryPhysician: values.primaryPhysician,
             schedule: new Date(values.schedule),
             status: status as Status,
@@ -125,7 +158,7 @@ export const AppointmentForm = ({
       buttonLabel = "Schedule Appointment";
       break;
     default:
-      buttonLabel = "Submit Apppointment";
+      buttonLabel = "Submit Appointment";
   }
 
   return (
@@ -145,11 +178,28 @@ export const AppointmentForm = ({
             <CustomFormField
               fieldType={FormFieldType.SELECT}
               control={form.control}
+              name="doctorType"
+              label="Doctor Type"
+              placeholder="Select a doctor type"
+            >
+              {DoctorTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </CustomFormField>
+
+            <CustomFormField
+              fieldType={FormFieldType.SELECT}
+              control={form.control}
               name="primaryPhysician"
               label="Doctor"
               placeholder="Select a doctor"
+              disabled={!form.watch("doctorType")}
             >
-              {Doctors.map((doctor, i) => (
+              {Doctors.filter(
+                (doctor) => doctor.type === form.watch("doctorType")
+              ).map((doctor, i) => (
                 <SelectItem key={doctor.name + i} value={doctor.name}>
                   <div className="flex cursor-pointer items-center gap-2">
                     <Image
@@ -159,7 +209,9 @@ export const AppointmentForm = ({
                       alt="doctor"
                       className="rounded-full border border-dark-500"
                     />
-                    <p>{doctor.name}</p>
+                    <p style={{ color: !isAvailable ? "red" : "inherit" }}>
+                      {doctor.name}
+                    </p>
                   </div>
                 </SelectItem>
               ))}
@@ -172,6 +224,8 @@ export const AppointmentForm = ({
               label="Expected appointment date"
               showTimeSelect
               dateFormat="MM/dd/yyyy  -  h:mm aa"
+              className={!isAvailable ? "text-red-500" : ""}
+              maxDate={maxDate}
             />
 
             <div
@@ -182,7 +236,7 @@ export const AppointmentForm = ({
                 control={form.control}
                 name="reason"
                 label="Appointment reason"
-                placeholder="Annual montly check-up"
+                placeholder="Annual monthly check-up"
                 disabled={type === "schedule"}
               />
 
@@ -210,7 +264,8 @@ export const AppointmentForm = ({
 
         <SubmitButton
           isLoading={isLoading}
-          className={`${type === "cancel" ? "shad-danger-btn" : "shad-primary-btn"} w-full`}
+          disabled={!isAvailable}
+          className={`${type === "cancel" ? "shad-danger-btn" : "shad-primary-btn"} w-full ${!isAvailable ? "opacity-50 cursor-not-allowed" : ""}`}
         >
           {buttonLabel}
         </SubmitButton>

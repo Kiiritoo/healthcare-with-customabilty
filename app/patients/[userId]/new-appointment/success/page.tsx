@@ -1,80 +1,125 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { PDFDownloadLink } from "@react-pdf/renderer";
 
 import { Button } from "@/components/ui/button";
-import { Doctors } from "@/constants";
+import { Doctors, DoctorType } from "@/constants";
 import { getAppointment } from "@/lib/actions/appointment.actions";
 import { formatDateTime } from "@/lib/utils";
+import AppointmentPDF from "@/components/AppointmentPDF";
 
-const RequestSuccess = async ({
-  searchParams,
-  params: { userId },
-}: SearchParamProps) => {
-  const appointmentId = (searchParams?.appointmentId as string) || "";
-  const appointment = await getAppointment(appointmentId);
+const RequestSuccess = ({ searchParams }: SearchParamProps) => {
+  const [appointment, setAppointment] = useState<AppointmentType | null>(null);
+  const [doctor, setDoctor] = useState<DoctorType | null>(null);
+  const [formattedDate, setFormattedDate] = useState<string>("");
 
-  const doctor = Doctors.find(
-    (doctor) => doctor.name === appointment.primaryPhysician
-  );
+  useEffect(() => {
+    const fetchAppointment = async () => {
+      const fetchedAppointment = await getAppointment(
+        searchParams.appointmentId
+      );
+      setAppointment(fetchedAppointment);
+
+      const foundDoctor = Doctors.find(
+        (doc) => doc.name === fetchedAppointment?.primaryPhysician
+      );
+      setDoctor(foundDoctor || null);
+
+      if (fetchedAppointment?.schedule) {
+        const formatted = formatDateTime(fetchedAppointment.schedule);
+        setFormattedDate(formatted.dateTime);
+      }
+    };
+
+    fetchAppointment();
+  }, [searchParams.appointmentId]);
+
+  if (!appointment || !doctor) {
+    return <div>Loading...</div>;
+  }
 
   return (
-    <div className=" flex h-screen max-h-screen px-[5%]">
-      <div className="success-img">
-        <Link href="/">
+    <div className="flex h-screen max-h-screen">
+      <section className="remove-scrollbar container my-auto">
+        <div className="sub-container max-w-[860px] flex-1 justify-between">
           <Image
             src="/assets/icons/logo-full.svg"
             height={1000}
             width={1000}
             alt="logo"
-            className="h-10 w-fit"
+            className="mb-12 h-10 w-fit"
           />
-        </Link>
 
-        <section className="flex flex-col items-center">
-          <Image
-            src="/assets/gifs/success.gif"
-            height={300}
-            width={280}
-            alt="success"
-          />
-          <h2 className="header mb-6 max-w-[600px] text-center">
-            Your <span className="text-green-500">appointment request</span> has
-            been successfully submitted!
-          </h2>
-          <p>We&apos;ll be in touch shortly to confirm.</p>
-        </section>
-
-        <section className="request-details">
-          <p>Requested appointment details: </p>
-          <div className="flex items-center gap-3">
-            <Image
-              src={doctor?.image!}
-              alt="doctor"
-              width={100}
-              height={100}
-              className="size-6"
-            />
-            <p className="whitespace-nowrap">Dr. {doctor?.name}</p>
+          <div className="mb-12 space-y-4">
+            <h1 className="header">Request Successful</h1>
+            <p className="text-dark-700">
+              Your appointment request has been sent successfully.
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Image
-              src="/assets/icons/calendar.svg"
-              height={24}
-              width={24}
-              alt="calendar"
-            />
-            <p> {formatDateTime(appointment.schedule).dateTime}</p>
+
+          <div className="mb-12 space-y-6">
+            <div className="flex items-center gap-3">
+              <Image
+                src={doctor.image}
+                alt="doctor"
+                width={100}
+                height={100}
+                className="size-12"
+              />
+              <div>
+                <p className="text-lg font-semibold">Dr. {doctor.name}</p>
+                <p className="text-sm text-dark-600">{doctor.type}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm text-dark-600">Appointment Date</p>
+              <p className="text-lg font-semibold">{formattedDate}</p>
+            </div>
           </div>
-        </section>
 
-        <Button variant="outline" className="shad-primary-btn" asChild>
-          <Link href={`/patients/${userId}/new-appointment`}>
-            New Appointment
-          </Link>
-        </Button>
+          <div className="flex flex-col gap-3">
+            <Link href={`/patients/${appointment.userId}/dashboard`}>
+              <Button className="shad-button_primary w-full">
+                View My Dashboard
+              </Button>
+            </Link>
+            <PDFDownloadLink
+              document={
+                <AppointmentPDF
+                  username={appointment.patient.name}
+                  doctorName={doctor.name}
+                  appointmentDate={formattedDate}
+                  patientGender={appointment.patient.gender}
+                />
+              }
+              fileName="appointment_confirmation.pdf"
+            >
+              {({ blob, url, loading, error }) => (
+                <Button
+                  className="shad-button_secondary w-full"
+                  disabled={loading}
+                >
+                  {loading ? "Generating PDF..." : "Download PDF Confirmation"}
+                </Button>
+              )}
+            </PDFDownloadLink>
+          </div>
 
-        <p className="copyright">© 2024 CarePluse</p>
-      </div>
+          <p className="copyright mt-10 py-12">© 2024 CarePulse</p>
+        </div>
+      </section>
+
+      <Image
+        src="/assets/images/appointment-img.png"
+        height={1500}
+        width={1500}
+        alt="appointment"
+        className="side-img max-w-[390px] bg-bottom"
+      />
     </div>
   );
 };

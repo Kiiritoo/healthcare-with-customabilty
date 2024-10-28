@@ -110,3 +110,40 @@ export const getPatient = async (userId: string) => {
     );
   }
 };
+
+// GET ALL PATIENTS
+export const getAllPatients = async () => {
+  try {
+    const patients = await databases.listDocuments(
+      DATABASE_ID!,
+      PATIENT_COLLECTION_ID!,
+      [Query.orderDesc("$createdAt")]
+    );
+
+    return parseStringify(patients);
+  } catch (error) {
+    console.error("Error fetching patients:", error);
+    return null;
+  }
+};
+
+// GET PATIENT MEDICAL HISTORY
+export const getPatientMedicalHistory = async (patientId: string) => {
+  try {
+    const patient = await databases.getDocument(
+      DATABASE_ID!,
+      PATIENT_COLLECTION_ID!,
+      patientId
+    );
+
+    return {
+      allergies: patient.allergies,
+      currentMedication: patient.currentMedication,
+      familyMedicalHistory: patient.familyMedicalHistory,
+      pastMedicalHistory: patient.pastMedicalHistory,
+    };
+  } catch (error) {
+    console.error("Error fetching patient medical history:", error);
+    return null;
+  }
+};

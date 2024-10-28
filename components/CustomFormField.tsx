@@ -40,6 +40,7 @@ interface CustomProps {
   children?: React.ReactNode;
   renderSkeleton?: (field: any) => React.ReactNode;
   fieldType: FormFieldType;
+  maxDateOffset?: number; // Jumlah hari maksimum dari hari ini
 }
 
 const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
@@ -80,7 +81,7 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
       return (
         <FormControl>
           <PhoneInput
-            defaultCountry="US"
+            defaultCountry="ID"
             placeholder={props.placeholder}
             international
             withCountryCallingCode
@@ -123,6 +124,8 @@ const RenderInput = ({ field, props }: { field: any; props: CustomProps }) => {
               timeInputLabel="Time:"
               dateFormat={props.dateFormat ?? "MM/dd/yyyy"}
               wrapperClassName="date-picker"
+              minDate={new Date()} // Ini akan mencegah pemilihan tanggal sebelum hari ini
+              maxDate={new Date(Date.now() + (props.maxDateOffset || 7) * 24 * 60 * 60 * 1000)}
             />
           </FormControl>
         </div>
